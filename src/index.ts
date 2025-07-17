@@ -177,13 +177,16 @@ export = function(app: SignalKApp): SignalKPlugin {
 
       // Check if MQTT port is accessible
       health.port = await checkPort(config.brokerPort);
+      app.debug(`Port check result: ${health.port}`);
       
       // Check MQTT connection
       health.mqtt = await checkMqttConnection(config);
+      app.debug(`MQTT connection check result: ${health.mqtt}`);
 
       // Check systemd service if enabled
       if (config.useSystemdControl) {
         health.systemd = await checkSystemdService(config.serviceName);
+        app.debug(`Systemd check result: ${health.systemd}`);
       }
 
       // Update broker status
@@ -191,7 +194,10 @@ export = function(app: SignalKApp): SignalKPlugin {
 
       // Collect additional stats if broker is running
       if (health.mqtt || health.port) {
+        app.debug('Collecting broker statistics...');
         await collectBrokerStatistics(config, timestamp);
+      } else {
+        app.debug('Skipping statistics collection - broker not reachable');
       }
 
       // Publish status to SignalK
@@ -287,6 +293,8 @@ export = function(app: SignalKApp): SignalKPlugin {
 
   // Initialize $SYS topics monitoring for statistics
   function initializeSysTopicsMonitoring(config: MosquittoManagerConfig): void {
+    app.debug(`Initializing $SYS topics monitoring for ${config.brokerUrl}:${config.brokerPort}`);
+    
     const client = connect(`${config.brokerUrl}:${config.brokerPort}`, {
       clientId: `${config.sourceLabel}-sys-monitor`,
       clean: true
@@ -310,7 +318,15 @@ export = function(app: SignalKApp): SignalKPlugin {
 
     client.on('connect', () => {
       app.debug('Connected to $SYS topics for statistics monitoring');
-      client.subscribe(sysTopics);
+      app.debug('Subscribing to topics:', sysTopics);
+      
+      client.subscribe(sysTopics, (err) => {
+        if (err) {
+          app.error('Failed to subscribe to $SYS topics:', err);
+        } else {
+          app.debug('Successfully subscribed to all $SYS topics');
+        }
+      });
       
       state.sysStatsCollector = {
         client,
@@ -323,13 +339,19 @@ export = function(app: SignalKApp): SignalKPlugin {
     client.on('message', (topic: string, message: Buffer) => {
       if (state.sysStatsCollector) {
         const value = message.toString();
-        state.sysStatsCollector.stats.set(topic, parseSysTopicValue(topic, value));
+        const parsedValue = parseSysTopicValue(topic, value);
+        app.debug(`$SYS message received: ${topic} = ${value} (parsed: ${parsedValue})`);
+        state.sysStatsCollector.stats.set(topic, parsedValue);
         state.sysStatsCollector.lastUpdated = new Date().toISOString();
       }
     });
 
     client.on('error', (error) => {
-      app.debug('$SYS topics monitoring error:', error.message);
+      app.error('$SYS topics monitoring error:', error.message);
+    });
+
+    client.on('disconnect', () => {
+      app.debug('$SYS topics monitoring disconnected');
     });
   }
 
@@ -374,26 +396,35 @@ export = function(app: SignalKApp): SignalKPlugin {
     try {
       // Get $SYS stats if available
       if (state.sysStatsCollector?.stats.size) {
+        app.debug(`Found ${state.sysStatsCollector.stats.size} $SYS statistics`);
         state.brokerStats.sysStats = extractSysStats(state.sysStatsCollector.stats);
+        app.debug('Extracted sysStats:', JSON.stringify(state.brokerStats.sysStats, null, 2));
+      } else {
+        app.debug('No $SYS statistics available - collector:', !!state.sysStatsCollector, 'size:', state.sysStatsCollector?.stats.size || 0);
       }
 
       // Count connections by checking port
-      state.brokerStats.connectionCount = await countConnections(config.brokerPort);
+      const connectionCount = await countConnections(config.brokerPort);
+      state.brokerStats.connectionCount = connectionCount;
+      app.debug(`Connection count: ${connectionCount}`);
 
       // Get log file size if accessible
       try {
         if (await fs.pathExists(config.logPath)) {
           const stats = await fs.stat(config.logPath);
           state.brokerStats.logSize = stats.size;
+          app.debug(`Log file size: ${stats.size} bytes`);
+        } else {
+          app.debug(`Log file not found: ${config.logPath}`);
         }
-      } catch {
-        // Log file not accessible, skip
+      } catch (error) {
+        app.debug(`Could not access log file: ${(error as Error).message}`);
       }
 
       state.brokerStats.lastUpdated = timestamp;
 
     } catch (error) {
-      app.debug('Error collecting broker statistics:', (error as Error).message);
+      app.error('Error collecting broker statistics:', (error as Error).message);
     }
   }
 
@@ -687,6 +718,11 @@ export = function(app: SignalKApp): SignalKPlugin {
     
     // Get broker status and statistics
     router.get('/api/status', (_: TypedRequest, res: TypedResponse<StatusApiResponse>) => {
+      app.debug('Status API called');
+      app.debug('Current config:', JSON.stringify(state.currentConfig, null, 2));
+      app.debug('Broker stats:', JSON.stringify(state.brokerStats, null, 2));
+      app.debug('SysStats collector:', state.sysStatsCollector ? 'active' : 'inactive');
+      
       res.json({
         success: true,
         status: state.brokerStats.status,
