@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignalK Mosquitto Manager</title>
+    <link rel="icon" type="image/jpeg" href="mosquitto.png">
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #015520 100%);                
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-card {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+        .status-info h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .status-controls {
+            text-align: center;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-running { background-color: #28a745; }
+        .status-stopped { background-color: #dc3545; }
+        .status-unreachable { background-color: #ffc107; }
+        .btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background: #218838;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border: 1px solid #2196F3;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .info-box h4 {
+            margin-top: 0;
+            color: #1976D2;
+        }
+        .info-box.warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+        .info-box.warning h4 {
+            color: #856404;
+        }
+        .config-files {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .config-file {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .config-file:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .config-file strong {
+            color: #28a745;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .config-editor {
+            margin-top: 20px;
+        }
+        .config-textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            line-height: 1.4;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .metric-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+            display: block;
+        }
+        .metric-label {
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .logs {
+            background: #1e1e1e;
+            color: #f1f1f1;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .method-selector {
+            margin: 10px 0;
+        }
+        .method-selector label {
+            margin-right: 15px;
+            font-weight: normal;
+        }
+        .hidden {
+            display: none;
+        }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 2px;
+        }
+        .tag-enabled {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .tag-disabled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .connection-health {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .health-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #dc3545;
+        }
+        .health-indicator.healthy {
+            background-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><img src="mosquitto.png" alt="Mosquitto" style="height: 40px; vertical-align: middle; margin-right: 10px; border-radius: 5px;"> 
+            SignalK Mosquitto Manager</h1>
+        <p>Monitor and manage your MQTT broker (TypeScript)</p>
+    </div>
+
+    <!-- Info Box -->
+    <div class="info-box">
+        <h4>🚀 Reduced Sudo Requirements</h4>
+        <p>This TypeScript version uses MQTT $SYS topics and direct port monitoring to reduce the need for sudo access. Systemd control is optional and can be disabled for completely sudo-free operation.</p>
+    </div>
+
+    <!-- Sudo Warning -->
+    <div id="sudoWarning" class="info-box warning" style="display: none;">
+        <h4>⚠️ Limited Permissions</h4>
+        <p>Some features require elevated permissions. The plugin will work with reduced functionality using MQTT-based monitoring.</p>
+    </div>
+
+    <!-- Broker Status -->
+    <div class="card">
+        <div class="status-card">
+            <div class="status-info">
+                <h3>
+                    <span id="statusIndicator" class="status-indicator status-stopped"></span>
+                    Broker Status: <span id="statusText">Checking...</span>
+                </h3>
+                <p><strong>Service:</strong> <span id="serviceName">-</span></p>
+                <p><strong>Monitoring via:</strong> <span id="monitorMethod">-</span></p>
+                <p><strong>Reachable:</strong> <span id="reachableStatus">-</span></p>
+                <p><strong>Uptime:</strong> <span id="brokerUptime">-</span></p>
+                <div class="connection-health">
+                    <span><strong>Connection Health:</strong></span>
+                    <div id="healthIndicator" class="health-indicator"></div>
+                    <span id="healthText">Unknown</span>
+                </div>
+            </div>
+            <div class="status-controls">
+                <div class="method-selector">
+                    <label><input type="radio" name="controlMethod" value="auto" checked> Auto</label>
+                    <label><input type="radio" name="controlMethod" value="systemd"> Systemd</label>
+                    <label><input type="radio" name="controlMethod" value="mqtt"> MQTT</label>
+                </div>
+                <button id="startBtn" class="btn" onclick="controlBroker('start')">Start Broker</button>
+                <button id="stopBtn" class="btn btn-danger" onclick="controlBroker('stop')">Stop Broker</button>
+                <button id="restartBtn" class="btn btn-warning" onclick="controlBroker('restart')">Restart Broker</button>
+                <button id="reloadBtn" class="btn btn-warning" onclick="controlBroker('reload')">Reload Config</button>
+                <br>
+                <button class="btn btn-secondary" onclick="refreshStatus()">Refresh Status</button>
+                <button class="btn btn-secondary" onclick="performHealthCheck()">Health Check</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="card">
+        <h3>📊 Broker Statistics</h3>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <span id="clientsConnected" class="metric-value">-</span>
+                <div class="metric-label">Connected Clients</div>
+            </div>
+            <div class="metric-card">
+                <span id="messagesReceived" class="metric-value">-</span>
+                <div class="metric-label">Messages Received</div>
+            </div>
+            <div class="metric-card">
+                <span id="messagesSent" class="metric-value">-</span>
+                <div class="metric-label">Messages Sent</div>
+            </div>
+            <div class="metric-card">
+                <span id="bytesReceived" class="metric-value">-</span>
+                <div class="metric-label">Bytes Received</div>
+            </div>
+            <div class="metric-card">
+                <span id="bytesSent" class="metric-value">-</span>
+                <div class="metric-label">Bytes Sent</div>
+            </div>
+            <div class="metric-card">
+                <span id="connectionsCount" class="metric-value">-</span>
+                <div class="metric-label">Total Connections</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Management -->
+    <div class="card">
+        <h3>⚙️ Configuration Files</h3>
+        <p>Manage Mosquitto configuration files in user-space (no sudo required):</p>
+        <div id="configFiles" class="config-files">
+            <div class="config-file" onclick="refreshConfigFiles()">
+                <strong>🔄 Refresh Files</strong>
+                Click to reload configuration files list
+            </div>
+        </div>
+        
+        <div id="configEditor" class="config-editor hidden">
+            <h4>Editing: <span id="currentFileName">-</span></h4>
+            <textarea id="configContent" class="config-textarea" placeholder="Configuration file content will appear here..."></textarea>
+            <br>
+            <button class="btn" onclick="saveConfigFile()">Save Changes</button>
+            <button class="btn btn-secondary" onclick="closeConfigEditor()">Cancel</button>
+            <button class="btn btn-warning" onclick="createNewConfigFile()">New File</button>
+        </div>
+    </div>
+
+    <!-- System Logs -->
+    <div class="card">
+        <h3>📝 Activity Logs</h3>
+        <div id="logs" class="logs">
+            TypeScript Mosquitto Manager initialized...\n
+        </div>
+    </div>
+
+    <script>
+        let brokerStatus = { running: false, reachable: false };
+        let brokerStats = null;
+        let currentEditingFile = null;
+        let configFiles = [];
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStatus();
+            refreshConfigFiles();
+            setInterval(refreshStatus, 10000); // Auto-refresh every 10 seconds
+            addLog('Web interface initialized');
+        });
+
+        // Refresh broker status
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/plugins/signalk-mosquitto-manager/api/status');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    brokerStatus = data.status;
+                    brokerStats = data.stats;
+                    updateStatusUI();
+                    updateMetricsUI();
+                }
+            } catch (error) {
+                console.error('Failed to get status:', error);
+                addLog('ERROR: Failed to get broker status - ' + error.message);
+                showSudoWarning();
+            }
+        }
+
+        // Perform health check
+        async function performHealthCheck() {
+            try {
+                addLog('Performing health check...');
+                const response = await fetch('/plugins/signalk-mosquitto-manager/api/health');
+                const data = await response.json();
+                
+                if (data.success) {
+                    addLog('Health check completed successfully');
+                    refreshStatus();
+                } else {
+                    addLog('Health check failed: ' + data.error);
+                }
+            } catch (error) {
+                addLog('Health check error: ' + error.message);
+            }
+        }
+
+        // Update status UI
+        function updateStatusUI() {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const restartBtn = document.getElementById('restartBtn');
+            const reloadBtn = document.getElementById('reloadBtn');
+            const healthIndicator = document.getElementById('healthIndicator');
+            const healthText = document.getElementById('healthText');
+
+            // Update main status
+            if (brokerStatus.running) {
+                indicator.className = 'status-indicator status-running';
+                statusText.textContent = 'Running';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                restartBtn.disabled = false;
+                reloadBtn.disabled = false;
+            } else if (brokerStatus.reachable) {
+                indicator.className = 'status-indicator status-unreachable';
+                statusText.textContent = 'Reachable but not responding';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                restartBtn.disabled = false;
+                reloadBtn.disabled = true;
+            } else {
+                indicator.className = 'status-indicator status-stopped';
+                statusText.textContent = 'Stopped';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                restartBtn.disabled = true;
+                reloadBtn.disabled = true;
+            }
+
+            // Update connection health
+            if (brokerStatus.running && brokerStatus.reachable) {
+                healthIndicator.className = 'health-indicator healthy';
+                healthText.textContent = 'Healthy';
+            } else {
+                healthIndicator.className = 'health-indicator';
+                healthText.textContent = brokerStatus.error || 'Unhealthy';
+            }
+
+            // Update details
+            document.getElementById('serviceName').textContent = brokerStats?.config?.serviceName || '-';
+            document.getElementById('monitorMethod').textContent = brokerStatus.connectionMethod || '-';
+            document.getElementById('reachableStatus').textContent = brokerStatus.reachable ? 'Yes' : 'No';
+            
+            // Format uptime
+            if (brokerStatus.uptime) {
+                const hours = Math.floor(brokerStatus.uptime / 3600);
+                const minutes = Math.floor((brokerStatus.uptime % 3600) / 60);
+                document.getElementById('brokerUptime').textContent = `${hours}h ${minutes}m`;
+            } else {
+                document.getElementById('brokerUptime').textContent = '-';
+            }
+        }
+
+        // Update metrics UI
+        function updateMetricsUI() {
+            if (!brokerStats?.sysStats) {
+                // Clear metrics if not available
+                ['clientsConnected', 'messagesReceived', 'messagesSent', 'bytesReceived', 'bytesSent'].forEach(id => {
+                    document.getElementById(id).textContent = '-';
+                });
+                document.getElementById('connectionsCount').textContent = brokerStats?.connectionCount || '-';
+                return;
+            }
+
+            const stats = brokerStats.sysStats;
+            
+            document.getElementById('clientsConnected').textContent = stats.clientsConnected || '-';
+            document.getElementById('messagesReceived').textContent = formatNumber(stats.messagesReceived);
+            document.getElementById('messagesSent').textContent = formatNumber(stats.messagesSent);
+            document.getElementById('bytesReceived').textContent = formatBytes(stats.bytesReceived);
+            document.getElementById('bytesSent').textContent = formatBytes(stats.bytesSent);
+            document.getElementById('connectionsCount').textContent = brokerStats.connectionCount || '-';
+        }
+
+        // Format large numbers
+        function formatNumber(num) {
+            if (!num && num !== 0) return '-';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        // Format bytes
+        function formatBytes(bytes) {
+            if (!bytes && bytes !== 0) return '-';
+            if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB';
+            if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+            if (bytes >= 1024) return (bytes / 1024).toFixed(1) + 'KB';
+            return bytes + 'B';
+        }
+
+        // Control broker
+        async function controlBroker(action) {
+            const selectedMethod = document.querySelector('input[name="controlMethod"]:checked').value;
+            
+            addLog(`${action.charAt(0).toUpperCase() + action.slice(1)}ing broker via ${selectedMethod}...`);
+            
+            try {
+                const response = await fetch(`/plugins/signalk-mosquitto-manager/api/control/${action}`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method: selectedMethod })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(`${result.message} (via ${result.method})`);
+                    setTimeout(refreshStatus, 2000);
+                } else {
+                    addLog(`ERROR: ${result.error}`);
+                    if (result.error.includes('Permission') || result.error.includes('sudo')) {
+                        showSudoWarning();
+                    }
+                }
+            } catch (error) {
+                addLog(`ERROR: Failed to ${action} broker - ${error.message}`);
+            }
+        }
+
+        // Configuration file management
+        async function refreshConfigFiles() {
+            try {
+                const response = await fetch('/plugins/signalk-mosquitto-manager/api/config');
+                const data = await response.json();
+                
+                if (data.success) {
+                    configFiles = data.files;
+                    updateConfigFilesUI();
+                    addLog(`Loaded ${configFiles.length} configuration files`);
+                } else {
+                    addLog('ERROR: Failed to load config files - ' + data.error);
+                }
+            } catch (error) {
+                addLog(`ERROR: Failed to load config files - ${error.message}`);
+            }
+        }
+
+        function updateConfigFilesUI() {
+            const container = document.getElementById('configFiles');
+            
+            // Keep refresh button and add files
+            const refreshButton = container.querySelector('.config-file');
+            container.innerHTML = '';
+            container.appendChild(refreshButton);
+
+            configFiles.forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'config-file';
+                fileDiv.onclick = () => editConfigFile(file.name);
+                fileDiv.innerHTML = `
+                    <strong>${file.name}</strong>
+                    <div style="font-size: 12px; color: #6c757d;">
+                        Size: ${file.size} bytes<br>
+                        Modified: ${new Date(file.modified).toLocaleString()}
+                        ${file.writable ? '<span class="tag tag-enabled">Writable</span>' : '<span class="tag tag-disabled">Read-only</span>'}
+                    </div>
+                `;
+                container.appendChild(fileDiv);
+            });
+        }
+
+        async function editConfigFile(fileName) {
+            try {
+                const response = await fetch(`/plugins/signalk-mosquitto-manager/api/config/${fileName}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentEditingFile = fileName;
+                    document.getElementById('currentFileName').textContent = fileName;
+                    document.getElementById('configContent').value = data.content;
+                    document.getElementById('configEditor').classList.remove('hidden');
+                    
+                    addLog(`Opened ${fileName} for editing`);
+                } else {
+                    addLog(`ERROR: Failed to load ${fileName} - ${data.error}`);
+                }
+            } catch (error) {
+                addLog(`ERROR: Failed to load ${fileName} - ${error.message}`);
+            }
+        }
+
+        async function saveConfigFile() {
+            if (!currentEditingFile) return;
+
+            const content = document.getElementById('configContent').value;
+            
+            try {
+                const response = await fetch(`/plugins/signalk-mosquitto-manager/api/config/${currentEditingFile}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(`Saved ${currentEditingFile}: ${result.message}`);
+                    closeConfigEditor();
+                    refreshConfigFiles();
+                } else {
+                    addLog(`ERROR: Failed to save ${currentEditingFile} - ${result.error}`);
+                }
+            } catch (error) {
+                addLog(`ERROR: Failed to save ${currentEditingFile} - ${error.message}`);
+            }
+        }
+
+        function closeConfigEditor() {
+            document.getElementById('configEditor').classList.add('hidden');
+            currentEditingFile = null;
+        }
+
+        function createNewConfigFile() {
+            const fileName = prompt('Enter new configuration file name (must end with .conf):');
+            if (fileName && fileName.endsWith('.conf')) {
+                currentEditingFile = fileName;
+                document.getElementById('currentFileName').textContent = fileName;
+                document.getElementById('configContent').value = '# New configuration file\n# Generated by SignalK Mosquitto Manager\n\n';
+                document.getElementById('configEditor').classList.remove('hidden');
+                addLog(`Creating new file: ${fileName}`);
+            }
+        }
+
+        // Show sudo warning
+        function showSudoWarning() {
+            document.getElementById('sudoWarning').style.display = 'block';
+        }
+
+        // Add log entry
+        function addLog(message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.textContent += `[${timestamp}] ${message}\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+    </script>
+</body>
+</html>
