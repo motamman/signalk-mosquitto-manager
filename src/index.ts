@@ -620,7 +620,12 @@ export = function(app: SignalKApp): SignalKPlugin {
   async function controlViaSystemd(action: BrokerAction, serviceName: string): Promise<ServiceControlResult> {
     try {
       const command = `systemctl ${action} ${serviceName}`;
-      await execAsync(command);
+      const { stdout, stderr } = await execAsync(command);
+      
+      app.debug(`Systemd command executed: ${command}`);
+      if (stderr) {
+        app.debug(`Systemd stderr: ${stderr}`);
+      }
       
       return {
         success: true,
@@ -628,11 +633,31 @@ export = function(app: SignalKApp): SignalKPlugin {
         message: `Broker ${action}ed successfully via systemd`
       };
     } catch (error) {
+      const execError = error as any;
+      let errorMessage = `Failed to ${action} via systemd: `;
+      
+      if (execError.code === 'ENOENT') {
+        errorMessage += 'systemctl command not found';
+      } else if (execError.stderr) {
+        errorMessage += execError.stderr.trim();
+      } else if (execError.message) {
+        errorMessage += execError.message;
+      } else {
+        errorMessage += 'Unknown systemd error';
+      }
+      
+      // Check for common permission issues
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('authentication')) {
+        errorMessage += '. User may need sudo permissions for systemctl commands.';
+      }
+      
+      app.debug(`Systemd control error: ${errorMessage}`);
+      
       return {
         success: false,
         method: 'systemd' as const,
         message: `Failed to ${action} via systemd`,
-        error: (error as Error).message
+        error: errorMessage
       };
     }
   }
@@ -641,11 +666,14 @@ export = function(app: SignalKApp): SignalKPlugin {
   async function controlViaMqtt(action: BrokerAction, config: MosquittoManagerConfig): Promise<ServiceControlResult> {
     // MQTT-based control requires special broker configuration
     // This is a placeholder for future implementation
+    
+    app.debug(`MQTT control attempted for ${action} - not implemented`);
+    
     return {
       success: false,
       method: 'mqtt' as const,
-      message: `MQTT control not available. Use systemd method or manage broker externally.`,
-      error: `MQTT control for '${action}' requires broker administrative plugin configuration`
+      message: `MQTT control not implemented`,
+      error: `MQTT-based broker control for '${action}' is not yet implemented. This requires special broker administrative plugin configuration. Please use systemd method or manage the broker externally via system commands.`
     };
   }
 
@@ -689,12 +717,23 @@ export = function(app: SignalKApp): SignalKPlugin {
 
       try {
         const result = await controlBroker(action, method);
-        res.json({ 
-          success: result.success, 
-          message: result.message,
-          action,
-          method: result.method
-        });
+        
+        if (result.success) {
+          res.json({ 
+            success: true, 
+            message: result.message,
+            action,
+            method: result.method
+          });
+        } else {
+          // Handle failed control operations
+          res.status(400).json({ 
+            success: false, 
+            error: result.error || result.message || 'Control operation failed',
+            action,
+            method: result.method
+          });
+        }
       } catch (error) {
         const errorMessage = error instanceof MosquittoManagerError 
           ? error.message 
