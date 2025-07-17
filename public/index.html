@@ -513,8 +513,9 @@
                     addLog(`${result.message} (via ${result.method})`);
                     setTimeout(refreshStatus, 2000);
                 } else {
-                    addLog(`ERROR: ${result.error}`);
-                    if (result.error.includes('Permission') || result.error.includes('sudo')) {
+                    const errorMsg = result.error || 'Unknown error occurred';
+                    addLog(`ERROR: ${errorMsg}`);
+                    if (errorMsg && (errorMsg.includes('Permission') || errorMsg.includes('sudo'))) {
                         showSudoWarning();
                     }
                 }

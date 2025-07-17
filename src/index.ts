@@ -639,13 +639,13 @@ export = function(app: SignalKApp): SignalKPlugin {
 
   // Control via MQTT (send administrative commands)
   async function controlViaMqtt(action: BrokerAction, config: MosquittoManagerConfig): Promise<ServiceControlResult> {
-    // This would require Mosquitto to be configured to accept administrative commands
-    // For now, this is a placeholder for future implementation
+    // MQTT-based control requires special broker configuration
+    // This is a placeholder for future implementation
     return {
       success: false,
       method: 'mqtt' as const,
-      message: `MQTT control not yet implemented for ${action}`,
-      error: 'Not implemented'
+      message: `MQTT control not available. Use systemd method or manage broker externally.`,
+      error: `MQTT control for '${action}' requires broker administrative plugin configuration`
     };
   }
 
@@ -696,9 +696,13 @@ export = function(app: SignalKApp): SignalKPlugin {
           method: result.method
         });
       } catch (error) {
+        const errorMessage = error instanceof MosquittoManagerError 
+          ? error.message 
+          : (error as Error).message || 'Unknown error occurred';
+        
         res.status(500).json({ 
           success: false, 
-          error: (error as Error).message,
+          error: errorMessage,
           action,
           method
         });
