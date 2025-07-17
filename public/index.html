@@ -345,6 +345,7 @@
     <script>
         let brokerStatus = { running: false, reachable: false };
         let brokerStats = null;
+        let brokerConfig = null;
         let currentEditingFile = null;
         let configFiles = [];
 
@@ -369,6 +370,7 @@
                 if (data.success) {
                     brokerStatus = data.status;
                     brokerStats = data.stats;
+                    brokerConfig = data.config; // Store config separately
                     updateStatusUI();
                     updateMetricsUI();
                 }
@@ -442,7 +444,7 @@
             }
 
             // Update details
-            document.getElementById('serviceName').textContent = brokerStats?.config?.serviceName || '-';
+            document.getElementById('serviceName').textContent = brokerConfig?.serviceName || '-';
             document.getElementById('monitorMethod').textContent = brokerStatus.connectionMethod || '-';
             document.getElementById('reachableStatus').textContent = brokerStatus.reachable ? 'Yes' : 'No';
             
